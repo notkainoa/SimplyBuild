@@ -46,6 +46,7 @@ function parseCliOptions(argv: string[]): CliOptions {
 
     switch (arg) {
       case "--help":
+      case "--h":
       case "-h":
         options.help = true;
         break;
@@ -80,7 +81,17 @@ function parseCliOptions(argv: string[]): CliOptions {
     }
   }
 
-  if (positional.length > 0) {
+  const isHelpAlias =
+    positional.length === 1 &&
+    positional[0].toLowerCase() === "help" &&
+    !options.device &&
+    !options.scheme &&
+    !options.listDevices &&
+    !options.listProjects;
+
+  if (isHelpAlias) {
+    options.help = true;
+  } else if (positional.length > 0) {
     options.query = positional.join(" ");
   }
 

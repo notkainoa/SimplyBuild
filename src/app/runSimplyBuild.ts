@@ -86,7 +86,34 @@ function formatCandidateList<T>(
 }
 
 function projectKeyFromContainer(container: ProjectCandidate): string {
-  return path.resolve(path.dirname(container.path));
+  return path.resolve(container.path);
+}
+
+function toTimestamp(value: string | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+async function resolveRememberedContainerPath(
+  candidates: ProjectCandidate[],
+  stateStore: StateStore,
+): Promise<string | undefined> {
+  const withMemory = await Promise.all(
+    candidates.map(async (candidate) => {
+      const memory = await stateStore.getProjectMemory(projectKeyFromContainer(candidate));
+      return {
+        candidate,
+        memory,
+      };
+    }),
+  );
+
+  withMemory.sort((a, b) => toTimestamp(b.memory?.updatedAt) - toTimestamp(a.memory?.updatedAt));
+  return withMemory.find((entry) => entry.memory)?.candidate.path;
 }
 
 async function resolveProjectCandidates(
@@ -378,13 +405,15 @@ export async function runSimplyBuild(
   prompts.intro("simplybuild");
 
   try {
-    const cwdMemory = await stateStore.getProjectMemory(cwd);
-
     const candidates = await resolveProjectCandidates(cwd, prompts, discoverProjectsFn);
+    const rememberedContainerPath = await resolveRememberedContainerPath(
+      candidates,
+      stateStore,
+    );
     const selectedContainer = await pickProject(
       candidates,
       prompts,
-      cwdMemory?.lastSelectedContainerPath,
+      rememberedContainerPath,
     );
 
     const projectKey = projectKeyFromContainer(selectedContainer);

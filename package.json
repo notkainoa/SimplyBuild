@@ -1,10 +1,11 @@
 {
-  "name": "simply-xcode-build",
+  "name": "simplybuild",
   "version": "0.1.0",
   "description": "Smart iOS build and deploy CLI wrapper for xcodebuildmcp",
   "type": "module",
   "bin": {
-    "simplybuild": "./dist/cli.js"
+    "simplybuild": "./dist/cli.js",
+    "sb": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

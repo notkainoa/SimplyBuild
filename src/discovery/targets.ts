@@ -18,6 +18,24 @@ interface DeviceCtlDevice {
   };
 }
 
+export function isLikelyIosPhysicalPlatform(platformIdentifier?: string): boolean {
+  if (!platformIdentifier) {
+    return true;
+  }
+
+  const normalized = platformIdentifier.toLowerCase();
+  return (
+    normalized.includes("iphoneos") ||
+    normalized === "ios" ||
+    normalized.endsWith(".ios")
+  );
+}
+
+export function isIosSimulatorRuntime(runtimeKey: string): boolean {
+  const runtime = runtimeKey.split("SimRuntime.").pop() ?? runtimeKey;
+  return runtime.toLowerCase().startsWith("ios-");
+}
+
 function parseRuntimeLabel(runtimeKey: string): string {
   const runtime = runtimeKey.split("SimRuntime.").pop() ?? runtimeKey;
   const parts = runtime.split("-");
@@ -68,6 +86,7 @@ export async function discoverPhysicalDevices(): Promise<TargetCandidate[]> {
 
     return items
       .filter((item) => item.visibilityClass !== "Simulator")
+      .filter((item) => isLikelyIosPhysicalPlatform(item.deviceProperties?.platformIdentifier))
       .filter((item) => typeof item.identifier === "string")
       .map((item) => {
         const state = normalizeState(
@@ -114,6 +133,10 @@ export async function discoverSimulators(): Promise<TargetCandidate[]> {
   const targets: TargetCandidate[] = [];
 
   for (const [runtime, simulatorList] of Object.entries(devices)) {
+    if (!isIosSimulatorRuntime(runtime)) {
+      continue;
+    }
+
     for (const item of simulatorList) {
       const name = typeof item.name === "string" ? item.name : undefined;
       const id = typeof item.udid === "string" ? item.udid : undefined;
