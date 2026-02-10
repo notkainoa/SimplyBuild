@@ -18,6 +18,7 @@ Then run:
 
 ```bash
 simplybuild --help
+sb --help
 ```
 
 `sb` is the short alias and works for all the same commands as `simplybuild`.
