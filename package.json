@@ -1,5 +1,5 @@
 {
-  "name": "simplybuild",
+  "name": "@kainoa/simplybuild",
   "version": "0.1.0",
   "description": "Smart iOS build and deploy CLI wrapper for xcodebuildmcp",
   "type": "module",
@@ -7,6 +7,10 @@
     "simplybuild": "./dist/cli.js",
     "sb": "./dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",

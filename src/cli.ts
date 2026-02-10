@@ -6,13 +6,12 @@ import { UserCancelledError, UserFacingError, type CliOptions } from "./types.js
 const HELP_TEXT = `simplybuild - Smart iOS build/deploy wrapper for xcodebuildmcp
 
 Usage:
-  simplybuild
-  simplybuild "screenager"
+  simplybuild --help
+  sb --help
   simplybuild --device "iPhone 15"
-  simplybuild --scheme MyApp "iPad"
+  simplybuild --scheme MyApp
   simplybuild --list-devices
   simplybuild --list-projects
-  simplybuild --help
 
 Options:
   --device <name>      Exact target name match (case-insensitive)
@@ -23,6 +22,11 @@ Options:
   --help, -h           Show this help
 `;
 
+interface ParsedCliOptions {
+  options: CliOptions;
+  parseError?: string;
+}
+
 function requireValue(flag: string, argv: string[], index: number): string {
   const value = argv[index + 1];
   if (!value || value.startsWith("-")) {
@@ -31,13 +35,18 @@ function requireValue(flag: string, argv: string[], index: number): string {
   return value;
 }
 
-function parseCliOptions(argv: string[]): CliOptions {
+function parseCliOptions(argv: string[]): ParsedCliOptions {
   const options: CliOptions = {
     listDevices: false,
     listProjects: false,
     verbose: false,
     help: false,
   };
+
+  if (argv.length === 0) {
+    options.help = true;
+    return { options };
+  }
 
   const positional: string[] = [];
 
@@ -69,12 +78,16 @@ function parseCliOptions(argv: string[]): CliOptions {
         break;
       default:
         if (arg.startsWith("-")) {
-          if (arg === "--watch") {
-            throw new UserFacingError(
-              "--watch is intentionally not implemented in simplybuild v1.",
-            );
-          }
-          throw new UserFacingError(`Unknown option: ${arg}`);
+          return {
+            options: {
+              ...options,
+              help: true,
+            },
+            parseError:
+              arg === "--watch"
+                ? "--watch is intentionally not implemented in simplybuild v1."
+                : `Unknown option: ${arg}`,
+          };
         }
         positional.push(arg);
         break;
@@ -91,22 +104,41 @@ function parseCliOptions(argv: string[]): CliOptions {
 
   if (isHelpAlias) {
     options.help = true;
-  } else if (positional.length > 0) {
-    options.query = positional.join(" ");
+    return { options };
+  }
+
+  if (positional.length > 0) {
+    return {
+      options: {
+        ...options,
+        help: true,
+      },
+      parseError: `Unknown command: ${positional.join(" ")}`,
+    };
   }
 
   if (options.listDevices && options.listProjects) {
-    throw new UserFacingError("Use either --list-devices or --list-projects, not both.");
+    return {
+      options: {
+        ...options,
+        help: true,
+      },
+      parseError: "Use either --list-devices or --list-projects, not both.",
+    };
   }
 
-  return options;
+  return { options };
 }
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const options = parseCliOptions(argv);
+  const { options, parseError } = parseCliOptions(argv);
 
   if (options.help) {
+    if (parseError) {
+      console.error(`Error: ${parseError}`);
+      process.exitCode = 1;
+    }
     console.log(HELP_TEXT);
     return;
   }

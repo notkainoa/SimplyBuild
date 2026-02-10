@@ -6,57 +6,56 @@
 
 - macOS with Xcode
 - Node.js 20+
-- `xcodebuildmcp` available in `PATH`
+- `xcodebuildmcp` available in `PATH` (interactive runs can install it automatically)
 
-## Install (local repo)
-
-```bash
-npm install
-npm run build
-```
-
-Run directly:
+## Install
 
 ```bash
-node dist/cli.js --help
+npm install -g @kainoa/simplybuild
 ```
+
+Then run:
+
+```bash
+simplybuild --help
+```
+
+`sb` is the short alias and works for all the same commands as `simplybuild`.
 
 ## Usage
 
 ```bash
-simplybuild
+simplybuild --help
 simplybuild "screenager"
 simplybuild --device "iPhone 15"
-simplybuild --scheme MyApp "iPad"
+simplybuild --scheme MyApp
 simplybuild --list-devices
 simplybuild --list-projects
 simplybuild --verbose
-simplybuild --help
 ```
 
 ## Behavior
 
-- Auto-discovers `.xcworkspace`/`.xcodeproj` recursively from current directory.
-- If none are found, prompts to search parent directories.
+- Auto-discovers `.xcworkspace` and `.xcodeproj` recursively from the current directory.
+- Prompts to search parent directories if no containers are found.
 - Auto-discovers schemes with `xcodebuild -list -json`.
-- Uses fuzzy target matching for positional query input.
-- Falls back to interactive Clack selectors when matching is ambiguous or weak.
-- `--device` requires exact name match (case-insensitive).
-- Physical deployment asks for one-time confirmation per `{project, deviceId}` and remembers approval.
-- Remembers last successful project/scheme/target context.
+- Falls back to interactive Clack selectors when target selection is required.
+- Requires exact `--device` name matching (case-insensitive).
+- Prompts once per project/device pair before physical deployment.
+- Checks for `xcodebuildmcp` at startup and can offer to install it in interactive mode.
 
-## State file
+## Contributing
 
-State is persisted at:
+For local development:
 
-- `$XDG_STATE_HOME/simplybuild/state.json` (if `XDG_STATE_HOME` is set)
-- otherwise `~/.local/state/simplybuild/state.json`
+```bash
+npm install
+npm run build
+npm test
+```
 
-Corrupt state files are automatically backed up as:
+Run from source:
 
-- `state.json.corrupt-<timestamp>`
-
-## Notes
-
-- `--watch` is intentionally not implemented in v1.
-- In non-interactive (no TTY) mode, commands fail fast when a prompt would be required.
+```bash
+node dist/cli.js --help
+```

@@ -36,6 +36,7 @@ const noopStateStore: StateStore = {
 
 describe("runSimplyBuild non-interactive behavior", () => {
   it("fails fast when interactive target selection would be required", async () => {
+    const ensureReady = vi.fn(async () => undefined);
     await expect(
       runSimplyBuild(
         {
@@ -46,12 +47,15 @@ describe("runSimplyBuild non-interactive behavior", () => {
         },
         {
           prompts: nonInteractivePrompts(),
+          ensureXcodebuildmcpReady: ensureReady,
         },
       ),
     ).rejects.toBeInstanceOf(UserFacingError);
+    expect(ensureReady).toHaveBeenCalledTimes(1);
   });
 
   it("fails when query requires disambiguation in non-interactive mode", async () => {
+    const ensureReady = vi.fn(async () => undefined);
     await expect(
       runSimplyBuild(
         {
@@ -64,6 +68,7 @@ describe("runSimplyBuild non-interactive behavior", () => {
         {
           prompts: nonInteractivePrompts(),
           stateStore: noopStateStore,
+          ensureXcodebuildmcpReady: ensureReady,
           discoverProjects: async () => [
             { kind: "workspace", path: "/repo/App.xcworkspace", name: "App" },
           ],
@@ -87,6 +92,7 @@ describe("runSimplyBuild non-interactive behavior", () => {
         },
       ),
     ).rejects.toBeInstanceOf(UserFacingError);
+    expect(ensureReady).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -95,6 +101,7 @@ describe("runSimplyBuild state memory keys", () => {
     const getProjectMemory = vi.fn(async () => undefined);
     const setProjectContext = vi.fn(async () => undefined);
     const runSimulator = vi.fn(async () => undefined);
+    const ensureReady = vi.fn(async () => undefined);
 
     const store: StateStore = {
       statePath: "/tmp/state.json",
@@ -116,6 +123,7 @@ describe("runSimplyBuild state memory keys", () => {
       {
         prompts: nonInteractivePrompts(),
         stateStore: store,
+        ensureXcodebuildmcpReady: ensureReady,
         discoverProjects: async () => [{ kind: "workspace", path: containerPath, name: "App" }],
         discoverSchemes: async () => [{ name: "App", isLikelyTestScheme: false }],
         discoverTargets: async () => [
@@ -142,6 +150,7 @@ describe("runSimplyBuild state memory keys", () => {
         scheme: "App",
       }),
     );
+    expect(ensureReady).toHaveBeenCalledTimes(1);
   });
 
   it("preselects the most recently used container from container-scoped memory", async () => {
@@ -190,6 +199,7 @@ describe("runSimplyBuild state memory keys", () => {
     });
 
     const runSimulator = vi.fn(async () => undefined);
+    const ensureReady = vi.fn(async () => undefined);
     await runSimplyBuild(
       {
         query: "screenager",
@@ -201,6 +211,7 @@ describe("runSimplyBuild state memory keys", () => {
       {
         cwd: "/repo/apps/subdir",
         prompts,
+        ensureXcodebuildmcpReady: ensureReady,
         stateStore: {
           statePath: "/tmp/state.json",
           getProjectMemory,
@@ -236,5 +247,78 @@ describe("runSimplyBuild state memory keys", () => {
       }),
       prompts,
     );
+    expect(ensureReady).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("runSimplyBuild prerequisite gate", () => {
+  it("runs prerequisite gate for list-projects mode", async () => {
+    const ensureReady = vi.fn(async () => undefined);
+
+    await runSimplyBuild(
+      {
+        listDevices: false,
+        listProjects: true,
+        verbose: false,
+        help: false,
+      },
+      {
+        prompts: nonInteractivePrompts(),
+        ensureXcodebuildmcpReady: ensureReady,
+        discoverProjects: async () => [],
+      },
+    );
+
+    expect(ensureReady).toHaveBeenCalledTimes(1);
+    expect(ensureReady).toHaveBeenCalledWith(expect.objectContaining({ interactive: false }), false);
+  });
+
+  it("runs prerequisite gate for list-devices mode", async () => {
+    const ensureReady = vi.fn(async () => undefined);
+
+    await runSimplyBuild(
+      {
+        listDevices: true,
+        listProjects: false,
+        verbose: true,
+        help: false,
+      },
+      {
+        prompts: nonInteractivePrompts(),
+        ensureXcodebuildmcpReady: ensureReady,
+        discoverTargets: async () => [],
+      },
+    );
+
+    expect(ensureReady).toHaveBeenCalledTimes(1);
+    expect(ensureReady).toHaveBeenCalledWith(expect.objectContaining({ interactive: false }), true);
+  });
+
+  it("stops early when prerequisite gate fails", async () => {
+    const ensureFailure = vi.fn(async () => {
+      throw new UserFacingError("Prerequisite check failed.");
+    });
+    const discoverProjects = vi.fn(async () => []);
+
+    await expect(
+      runSimplyBuild(
+        {
+          listDevices: false,
+          listProjects: true,
+          verbose: false,
+          help: false,
+        },
+        {
+          prompts: nonInteractivePrompts(),
+          ensureXcodebuildmcpReady: ensureFailure,
+          discoverProjects,
+        },
+      ),
+    ).rejects.toMatchObject({
+      message: "Prerequisite check failed.",
+    });
+
+    expect(ensureFailure).toHaveBeenCalledTimes(1);
+    expect(discoverProjects).not.toHaveBeenCalled();
   });
 });

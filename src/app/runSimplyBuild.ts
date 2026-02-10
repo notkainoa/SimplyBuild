@@ -14,11 +14,13 @@ import { decideTargetFromQuery } from "../matching/targetMatcher.js";
 import { createStateStore, type StateStore } from "../state/store.js";
 import { createPromptApi, type PromptApi } from "../ui/prompts.js";
 import { runPhysicalPipeline, runSimulatorPipeline } from "../runner/pipelines.js";
+import { ensureXcodebuildmcpReady } from "../setup/xcodebuildmcpPrereq.js";
 
 export interface RunSimplyBuildDependencies {
   cwd?: string;
   prompts?: PromptApi;
   stateStore?: StateStore;
+  ensureXcodebuildmcpReady?: (prompts: PromptApi, verbose: boolean) => Promise<void>;
   discoverProjects?: (scanRoot: string) => Promise<ProjectCandidate[]>;
   discoverSchemes?: (container: ProjectCandidate) => Promise<SchemeCandidate[]>;
   discoverTargets?: () => Promise<TargetCandidate[]>;
@@ -363,11 +365,15 @@ export async function runSimplyBuild(
   const cwd = path.resolve(deps.cwd ?? process.cwd());
   const prompts = deps.prompts ?? createPromptApi();
   const stateStore = deps.stateStore ?? createStateStore();
+  const ensureXcodebuildmcpReadyFn =
+    deps.ensureXcodebuildmcpReady ?? ensureXcodebuildmcpReady;
   const discoverProjectsFn = deps.discoverProjects ?? discoverProjects;
   const discoverSchemesFn = deps.discoverSchemes ?? discoverSchemes;
   const discoverTargetsFn = deps.discoverTargets ?? discoverTargets;
   const runSimulator = deps.runSimulatorPipeline ?? runSimulatorPipeline;
   const runPhysical = deps.runPhysicalPipeline ?? runPhysicalPipeline;
+
+  await ensureXcodebuildmcpReadyFn(prompts, options.verbose);
 
   if (options.listProjects) {
     const projects = await discoverProjectsFn(cwd);

@@ -3,4 +3,5 @@ dist/
 coverage/
 .vitest/
 *.log
+*.tgz
 .DS_Store
