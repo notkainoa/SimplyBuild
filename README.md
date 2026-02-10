@@ -60,3 +60,5 @@ Run from source:
 ```bash
 node dist/cli.js --help
 ```
+
+Contributions are welcome. Anyone is free to open a PR on GitHub: https://github.com/notkainoa/SimplyBuild
