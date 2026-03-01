@@ -5,6 +5,7 @@ export const HELP_TEXT = `simplybuild - Smart iOS build/deploy wrapper for xcode
 Usage:
   simplybuild --help
   sb --help
+  simplebuild --help
   simplybuild "screenager"
   simplybuild --device "iPhone 15"
   simplybuild --scheme MyApp
@@ -19,6 +20,10 @@ Options:
   --verbose            Stream underlying command output
   --help, help         Show this help
   --h, -h, -help, h    Additional help aliases
+
+Aliases:
+  simplebuild, simple-build, simply-build
+  symplebuild, symplybuild, symple-build, symply-build
 `;
 
 export interface ParsedCliOptions {
