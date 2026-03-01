@@ -17,7 +17,8 @@ Options:
   --list-devices       List available physical devices and simulators
   --list-projects      List discovered .xcodeproj/.xcworkspace in current directory tree
   --verbose            Stream underlying command output
-  --help, -h           Show this help
+  --help, help         Show this help
+  --h, -h, -help, h    Additional help aliases
 `;
 
 export interface ParsedCliOptions {
