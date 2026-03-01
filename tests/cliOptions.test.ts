@@ -2,6 +2,47 @@ import { describe, expect, it } from "vitest";
 import { parseCliOptions } from "../src/cliOptions.js";
 
 describe("parseCliOptions", () => {
+  it("treats an empty invocation as normal run flow", () => {
+    const result = parseCliOptions([]);
+
+    expect(result.parseError).toBeUndefined();
+    expect(result.options.help).toBe(false);
+    expect(result.options.query).toBeUndefined();
+  });
+
+  it.each([
+    [["--help"]],
+    [["help"]],
+    [["h"]],
+    [["-h"]],
+    [["-help"]],
+    [["--h"]],
+  ])("accepts %j as a help alias", (argv) => {
+    const result = parseCliOptions(argv);
+
+    expect(result.parseError).toBeUndefined();
+    expect(result.options.help).toBe(true);
+  });
+
+  it("treats unknown flags as parse errors that show help", () => {
+    const result = parseCliOptions(["--he"]);
+
+    expect(result.options.help).toBe(true);
+    expect(result.parseError).toBe("Unknown option: --he");
+  });
+
+  it.each([
+    [["halp"]],
+    [["hh"]],
+    [["help", "now"]],
+    [["h", "now"]],
+  ])("does not treat %j as a help alias", (argv) => {
+    const result = parseCliOptions(argv);
+
+    expect(result.options.help).toBe(false);
+    expect(result.parseError).toBeUndefined();
+  });
+
   it("treats positional input as a target query", () => {
     const result = parseCliOptions(["screenager"]);
 

@@ -41,11 +41,6 @@ export function parseCliOptions(argv: string[]): ParsedCliOptions {
     help: false,
   };
 
-  if (argv.length === 0) {
-    options.help = true;
-    return { options };
-  }
-
   const positional: string[] = [];
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -53,6 +48,7 @@ export function parseCliOptions(argv: string[]): ParsedCliOptions {
 
     switch (arg) {
       case "--help":
+      case "-help":
       case "--h":
       case "-h":
         options.help = true;
@@ -94,7 +90,7 @@ export function parseCliOptions(argv: string[]): ParsedCliOptions {
 
   const isHelpAlias =
     positional.length === 1 &&
-    positional[0].toLowerCase() === "help" &&
+    ["help", "h"].includes(positional[0].toLowerCase()) &&
     !options.device &&
     !options.scheme &&
     !options.listDevices &&
