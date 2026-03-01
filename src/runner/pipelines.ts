@@ -30,14 +30,44 @@ function containerArgs(container: ProjectCandidate): string[] {
     : ["--project-path", container.path];
 }
 
-function formatToolFailure(result: ToolCommandResult, fallbackLabel: string): string {
-  const text = result.response.text || result.stderr || result.stdout;
-  return text.trim().length > 0 ? text.trim() : fallbackLabel;
+function normalizeFailureBlock(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : undefined;
+}
+
+function appendUniqueBlock(blocks: string[], label: string, value: string | undefined): void {
+  const normalized = normalizeFailureBlock(value);
+  if (!normalized) {
+    return;
+  }
+
+  const formatted = `${label}:\n${normalized}`;
+  if (!blocks.includes(formatted)) {
+    blocks.push(formatted);
+  }
+}
+
+function formatToolFailureDetails(result: ToolCommandResult): string[] {
+  const details: string[] = [];
+
+  if (result.code !== 0) {
+    details.push(`Exit code: ${result.code}`);
+  }
+
+  appendUniqueBlock(details, "Tool response", result.response.text);
+  appendUniqueBlock(details, "stderr", result.stderr);
+  appendUniqueBlock(details, "stdout", result.stdout);
+
+  return details;
 }
 
 function assertToolSuccess(result: ToolCommandResult, fallbackLabel: string): void {
   if (!result.ok || result.response.isError) {
-    throw new UserFacingError(formatToolFailure(result, fallbackLabel));
+    const details = formatToolFailureDetails(result);
+    throw new UserFacingError(
+      fallbackLabel,
+      details.length > 0 ? details : undefined,
+    );
   }
 }
 
@@ -158,7 +188,7 @@ export async function runSimulatorPipeline(
       const result = await deps.runTool(
         [
           "simulator",
-          "build-run-sim",
+          "build-and-run",
           ...containerArgs(ctx.container),
           "--scheme",
           ctx.scheme,
@@ -190,7 +220,7 @@ export async function runPhysicalPipeline(
 
   await prompts.stage(`Building ${ctx.scheme} for physical device`, async () => {
     const result = await deps.runTool(
-      ["device", "build-device", ...baseArgs, "--scheme", ctx.scheme, "--configuration", "Debug"],
+      ["device", "build", ...baseArgs, "--scheme", ctx.scheme, "--configuration", "Debug"],
       { verbose: ctx.verbose },
     );
     assertToolSuccess(result, "Device build failed.");
@@ -198,7 +228,7 @@ export async function runPhysicalPipeline(
 
   const appPath = await prompts.stage("Resolving built app path", async () => {
     const pathResult = await deps.runTool(
-      ["device", "get-device-app-path", ...baseArgs, "--scheme", ctx.scheme, "--platform", "iOS"],
+      ["device", "get-app-path", ...baseArgs, "--scheme", ctx.scheme, "--platform", "iOS"],
       { verbose: false },
     );
     assertToolSuccess(pathResult, "Failed to get built app path.");
@@ -230,7 +260,7 @@ export async function runPhysicalPipeline(
     const installResult = await deps.runTool(
       [
         "device",
-        "install-app-device",
+        "install",
         "--device-id",
         ctx.target.id,
         "--app-path",
@@ -245,7 +275,7 @@ export async function runPhysicalPipeline(
     const launchResult = await deps.runTool(
       [
         "device",
-        "launch-app-device",
+        "launch",
         "--device-id",
         ctx.target.id,
         "--bundle-id",
