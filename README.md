@@ -19,9 +19,10 @@ Then run:
 ```bash
 simplybuild --help
 sb --help
+simplebuild --help
 ```
 
-`sb` is the short alias and works for all the same commands as `simplybuild`.
+Aliases that resolve to the same CLI: `sb`, `simplebuild`, `simple-build`, `simply-build`, `symplebuild`, `symplybuild`, `symple-build`, and `symply-build`.
 
 ## Usage
 
