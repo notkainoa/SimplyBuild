@@ -1,6 +1,6 @@
 {
   "name": "@kainoa/simplybuild",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Smart iOS build and deploy CLI wrapper for xcodebuildmcp",
   "type": "module",
   "bin": {
