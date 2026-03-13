@@ -119,6 +119,7 @@ export function createPromptApi(forceInteractive?: boolean): PromptApi {
       labels?: { success?: string; error?: string },
     ): Promise<T> {
       if (!interactive) {
+        console.error(message);
         return task();
       }
 
