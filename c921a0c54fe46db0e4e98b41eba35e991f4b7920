@@ -1,0 +1,29 @@
+src/app/runSimplyBuild.ts
+  424008056afd9f1d 90-139,177,180-190,220,277-285,451-459,473-481,526-534
+tests/runSimplyBuild.test.ts
+  424008056afd9f1d 29-82,379-543
+tests/prompts.test.ts
+  424008056afd9f1d 1-20
+src/ui/prompts.ts
+  424008056afd9f1d 122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.11",
+  "base_commit_sha": "c921a0c54fe46db0e4e98b41eba35e991f4b7920",
+  "prompts": {
+    "424008056afd9f1d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ce861-948d-73b2-89f3-ce4d8b59a591",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Kainoa Newton <k@kainoa.me>",
+      "messages": [],
+      "total_additions": 346,
+      "total_deletions": 5,
+      "accepted_lines": 341,
+      "overriden_lines": 0
+    }
+  }
+}
