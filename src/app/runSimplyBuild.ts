@@ -87,6 +87,56 @@ function formatCandidateList<T>(
   return lines;
 }
 
+function formatDiscoverySuccessLabel(
+  count: number,
+  singularLabel: string,
+  pluralLabel: string,
+  emptyLabel: string,
+): string {
+  if (count === 0) {
+    return emptyLabel;
+  }
+
+  if (count === 1) {
+    return `Found 1 ${singularLabel}`;
+  }
+
+  return `Found ${count} ${pluralLabel}`;
+}
+
+async function discoverWithStage<T>(
+  prompts: PromptApi,
+  message: string,
+  task: () => Promise<T[]>,
+  labels: {
+    singular: string;
+    plural: string;
+    empty: string;
+  },
+): Promise<T[]> {
+  let successLabel = message;
+
+  return prompts.stage(
+    message,
+    async () => {
+      const results = await task();
+      successLabel = formatDiscoverySuccessLabel(
+        results.length,
+        labels.singular,
+        labels.plural,
+        labels.empty,
+      );
+      return results;
+    },
+    {
+      get success() {
+        return successLabel;
+      },
+      error: message,
+    },
+  );
+}
+
 function projectKeyFromContainer(container: ProjectCandidate): string {
   return path.resolve(container.path);
 }
@@ -124,9 +174,21 @@ async function resolveProjectCandidates(
   discoverProjectsFn: (scanRoot: string) => Promise<ProjectCandidate[]>,
 ): Promise<ProjectCandidate[]> {
   let scanDir = path.resolve(startDir);
+  let isParentSearch = false;
 
   while (true) {
-    const candidates = await discoverProjectsFn(scanDir);
+    const message = isParentSearch ? "Loading parent projects" : "Loading projects";
+    const emptyLabel = isParentSearch ? "No parent projects found" : "No projects found";
+    const candidates = await discoverWithStage(
+      prompts,
+      message,
+      async () => discoverProjectsFn(scanDir),
+      {
+        singular: "project",
+        plural: "projects",
+        empty: emptyLabel,
+      },
+    );
     if (candidates.length > 0) {
       return candidates;
     }
@@ -155,6 +217,7 @@ async function resolveProjectCandidates(
     }
 
     scanDir = parentDir;
+    isParentSearch = true;
   }
 }
 
@@ -211,7 +274,16 @@ async function resolveScheme(
   prompts: PromptApi,
   discoverSchemesFn: (container: ProjectCandidate) => Promise<SchemeCandidate[]>,
 ): Promise<string> {
-  const schemes = await discoverSchemesFn(container);
+  const schemes = await discoverWithStage(
+    prompts,
+    "Loading schemes",
+    async () => discoverSchemesFn(container),
+    {
+      singular: "scheme",
+      plural: "schemes",
+      empty: "No schemes found",
+    },
+  );
 
   if (explicitScheme) {
     if (schemes.length === 0) {
@@ -376,7 +448,16 @@ export async function runSimplyBuild(
   await ensureXcodebuildmcpReadyFn(prompts, options.verbose);
 
   if (options.listProjects) {
-    const projects = await discoverProjectsFn(cwd);
+    const projects = await discoverWithStage(
+      prompts,
+      "Loading projects",
+      async () => discoverProjectsFn(cwd),
+      {
+        singular: "project",
+        plural: "projects",
+        empty: "No projects found",
+      },
+    );
     if (projects.length === 0) {
       console.log("No Xcode projects/workspaces found.");
       return;
@@ -389,7 +470,16 @@ export async function runSimplyBuild(
   }
 
   if (options.listDevices) {
-    const targets = await discoverTargetsFn();
+    const targets = await discoverWithStage(
+      prompts,
+      "Loading devices and simulators",
+      async () => discoverTargetsFn(),
+      {
+        singular: "device or simulator",
+        plural: "devices and simulators",
+        empty: "No devices or simulators found",
+      },
+    );
     if (targets.length === 0) {
       console.log("No available devices/simulators found.");
       return;
@@ -433,7 +523,16 @@ export async function runSimplyBuild(
       discoverSchemesFn,
     );
 
-    const allTargets = await discoverTargetsFn();
+    const allTargets = await discoverWithStage(
+      prompts,
+      "Loading devices and simulators",
+      async () => discoverTargetsFn(),
+      {
+        singular: "device or simulator",
+        plural: "devices and simulators",
+        empty: "No devices or simulators found",
+      },
+    );
     const { target } = await resolveTarget(
       options,
       allTargets,
