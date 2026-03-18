@@ -493,12 +493,17 @@ describe("runSimplyBuild discovery loading feedback", () => {
       interactive: true,
       confirm: async () => true,
     });
-    const discoverProjects = vi
-      .fn<Parameters<(scanRoot: string) => Promise<Array<{ kind: "workspace"; path: string; name: string }>>>, ReturnType<(scanRoot: string) => Promise<Array<{ kind: "workspace"; path: string; name: string }>>>>()
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { kind: "workspace", path: "/repo/App.xcworkspace", name: "App" },
-      ]);
+    const discoverProjects = vi.fn(async (scanRoot: string) => {
+      if (scanRoot === "/repo/subdir") {
+        return [];
+      }
+
+      if (scanRoot === "/repo") {
+        return [{ kind: "workspace" as const, path: "/repo/App.xcworkspace", name: "App" }];
+      }
+
+      throw new Error(`Unexpected scan root: ${scanRoot}`);
+    });
 
     await runSimplyBuild(
       {
@@ -541,5 +546,7 @@ describe("runSimplyBuild discovery loading feedback", () => {
         error: "Loading parent projects",
       },
     ]);
+    expect(discoverProjects).toHaveBeenNthCalledWith(1, "/repo/subdir");
+    expect(discoverProjects).toHaveBeenNthCalledWith(2, "/repo");
   });
 });
