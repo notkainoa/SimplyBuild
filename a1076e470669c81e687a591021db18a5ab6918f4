@@ -1,0 +1,23 @@
+tests/runSimplyBuild.test.ts
+  424008056afd9f1d 496-499,501-506,549-550
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "a1076e470669c81e687a591021db18a5ab6918f4",
+  "prompts": {
+    "424008056afd9f1d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ce861-948d-73b2-89f3-ce4d8b59a591",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Kainoa Newton <k@kainoa.me>",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 6,
+      "accepted_lines": 13,
+      "overriden_lines": 0
+    }
+  }
+}
