@@ -41,14 +41,26 @@ function targetLabel(target: TargetCandidate): string {
   return `[${kindLabel}] ${target.name}${osPart}${statePart}`;
 }
 
+function targetMatchesRememberedId(target: TargetCandidate, rememberedTargetId?: string): boolean {
+  if (!rememberedTargetId) {
+    return false;
+  }
+
+  return target.id === rememberedTargetId || target.aliases?.includes(rememberedTargetId) === true;
+}
+
+function targetKnownIds(target: TargetCandidate): string[] {
+  return [...new Set([target.id, ...(target.aliases ?? [])])];
+}
+
 function sortTargetsForSelection(
   targets: TargetCandidate[],
   rememberedTargetId?: string,
 ): TargetCandidate[] {
   const copy = [...targets];
   copy.sort((a, b) => {
-    const aRemembered = rememberedTargetId && a.id === rememberedTargetId ? 1 : 0;
-    const bRemembered = rememberedTargetId && b.id === rememberedTargetId ? 1 : 0;
+    const aRemembered = targetMatchesRememberedId(a, rememberedTargetId) ? 1 : 0;
+    const bRemembered = targetMatchesRememberedId(b, rememberedTargetId) ? 1 : 0;
     if (aRemembered !== bRemembered) {
       return bRemembered - aRemembered;
     }
@@ -349,13 +361,16 @@ async function selectTargetInteractively(
   }
 
   const sorted = sortTargetsForSelection(allTargets, rememberedTargetId);
+  const initialTargetId =
+    sorted.find((target) => targetMatchesRememberedId(target, rememberedTargetId))?.id ??
+    rememberedTargetId;
   const selectedId = await prompts.select<string>(
     message,
     sorted.map((target) => ({
       value: target.id,
       label: targetLabel(target),
     })),
-    rememberedTargetId,
+    initialTargetId,
   );
 
   const selected = sorted.find((target) => target.id === selectedId);
@@ -541,7 +556,11 @@ export async function runSimplyBuild(
     );
 
     if (target.kind === "physical") {
-      const isApproved = await stateStore.isPhysicalDeviceApproved(projectKey, target.id);
+      const targetIds = targetKnownIds(target);
+      const approvalChecks = await Promise.all(
+        targetIds.map((deviceId) => stateStore.isPhysicalDeviceApproved(projectKey, deviceId)),
+      );
+      const isApproved = approvalChecks.some(Boolean);
       if (!isApproved) {
         if (!prompts.interactive) {
           throw new UserFacingError(
@@ -558,7 +577,9 @@ export async function runSimplyBuild(
           throw new UserCancelledError("Physical deployment not approved.");
         }
 
-        await stateStore.markPhysicalDeviceApproved(projectKey, target.id);
+        for (const deviceId of targetIds) {
+          await stateStore.markPhysicalDeviceApproved(projectKey, deviceId);
+        }
       }
     }
 

@@ -15,9 +15,11 @@ export interface SchemeCandidate {
 export interface TargetCandidate {
   kind: TargetKind;
   id: string;
+  aliases?: string[];
   name: string;
   os: string;
   state: string;
+  connectionState?: "connected" | "paired_disconnected" | "unpaired" | "unknown";
   isBooted?: boolean;
 }
 

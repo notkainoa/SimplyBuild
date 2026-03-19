@@ -303,6 +303,264 @@ describe("runSimplyBuild state memory keys", () => {
     );
     expect(ensureReady).toHaveBeenCalledTimes(1);
   });
+
+  it("preselects a remembered physical target when the remembered id matches an alias", async () => {
+    let rememberedTarget: string | undefined;
+    const prompts: PromptApi = {
+      interactive: true,
+      intro: () => undefined,
+      outro: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+      step: () => undefined,
+      select: async (message, options, initialValue) => {
+        if (message === "Select target device/simulator") {
+          rememberedTarget = initialValue as string | undefined;
+          return (initialValue as string | undefined) ?? (options[0]?.value as string);
+        }
+        throw new Error(`Unexpected select prompt: ${message}`);
+      },
+      confirm: async () => true,
+      text: async () => "unused",
+      stage: async (_message, task) => task(),
+    };
+
+    const runPhysical = vi.fn(async () => undefined);
+    const ensureReady = vi.fn(async () => undefined);
+    await runSimplyBuild(
+      {
+        listDevices: false,
+        listProjects: false,
+        verbose: false,
+        help: false,
+      },
+      {
+        prompts,
+        ensureXcodebuildmcpReady: ensureReady,
+        stateStore: {
+          statePath: "/tmp/state.json",
+          getProjectMemory: async () => ({
+            lastTarget: {
+              kind: "physical",
+              id: "ecid_legacy",
+              name: "Screenager",
+            },
+            approvedPhysicalDeviceIds: ["UDID-1"],
+            updatedAt: "2026-01-02T00:00:00.000Z",
+          }),
+          setProjectContext: async () => undefined,
+          markPhysicalDeviceApproved: async () => undefined,
+          isPhysicalDeviceApproved: async () => true,
+        },
+        discoverProjects: async () => [{ kind: "workspace", path: "/repo/App.xcworkspace", name: "App" }],
+        discoverSchemes: async () => [{ name: "App", isLikelyTestScheme: false }],
+        discoverTargets: async () => [
+          {
+            kind: "physical",
+            id: "UDID-1",
+            aliases: ["ecid_legacy"],
+            name: "Screenager",
+            os: "iOS 26.4",
+            state: "Paired (Not Connected)",
+            connectionState: "paired_disconnected",
+          },
+        ],
+        runPhysicalPipeline: runPhysical,
+      },
+    );
+
+    expect(rememberedTarget).toBe("UDID-1");
+    expect(runPhysical).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: expect.objectContaining({
+          id: "UDID-1",
+        }),
+      }),
+      prompts,
+    );
+  });
+
+  it("treats legacy approved physical ids as approved via aliases in non-interactive mode", async () => {
+    const isPhysicalDeviceApproved = vi.fn(async (_projectKey: string, deviceId: string) => {
+      return deviceId === "ecid_legacy";
+    });
+    const markPhysicalDeviceApproved = vi.fn(async () => undefined);
+    const runPhysical = vi.fn(async () => undefined);
+    const ensureReady = vi.fn(async () => undefined);
+
+    await runSimplyBuild(
+      {
+        query: "screenager",
+        listDevices: false,
+        listProjects: false,
+        verbose: false,
+        help: false,
+      },
+      {
+        prompts: nonInteractivePrompts(),
+        ensureXcodebuildmcpReady: ensureReady,
+        stateStore: {
+          statePath: "/tmp/state.json",
+          getProjectMemory: async () => undefined,
+          setProjectContext: async () => undefined,
+          markPhysicalDeviceApproved,
+          isPhysicalDeviceApproved,
+        },
+        discoverProjects: async () => [{ kind: "workspace", path: "/repo/App.xcworkspace", name: "App" }],
+        discoverSchemes: async () => [{ name: "App", isLikelyTestScheme: false }],
+        discoverTargets: async () => [
+          {
+            kind: "physical",
+            id: "UDID-1",
+            aliases: ["ecid_legacy"],
+            name: "Screenager",
+            os: "iOS 26.4",
+            state: "Paired (Not Connected)",
+            connectionState: "paired_disconnected",
+          },
+        ],
+        runPhysicalPipeline: runPhysical,
+      },
+    );
+
+    expect(isPhysicalDeviceApproved).toHaveBeenCalledWith(
+      path.resolve("/repo/App.xcworkspace"),
+      "UDID-1",
+    );
+    expect(isPhysicalDeviceApproved).toHaveBeenCalledWith(
+      path.resolve("/repo/App.xcworkspace"),
+      "ecid_legacy",
+    );
+    expect(markPhysicalDeviceApproved).not.toHaveBeenCalled();
+    expect(runPhysical).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores approval for all known physical target ids after confirmation", async () => {
+    const markPhysicalDeviceApproved = vi.fn(async () => undefined);
+    const runPhysical = vi.fn(async () => undefined);
+    const ensureReady = vi.fn(async () => undefined);
+
+    await runSimplyBuild(
+      {
+        query: "screenager",
+        listDevices: false,
+        listProjects: false,
+        verbose: false,
+        help: false,
+      },
+      {
+        prompts: {
+          interactive: true,
+          intro: () => undefined,
+          outro: () => undefined,
+          info: () => undefined,
+          warn: () => undefined,
+          step: () => undefined,
+          select: async () => {
+            throw new Error("select should not be called");
+          },
+          confirm: async () => true,
+          text: async () => "unused",
+          stage: async (_message, task) => task(),
+        },
+        ensureXcodebuildmcpReady: ensureReady,
+        stateStore: {
+          statePath: "/tmp/state.json",
+          getProjectMemory: async () => undefined,
+          setProjectContext: async () => undefined,
+          markPhysicalDeviceApproved,
+          isPhysicalDeviceApproved: async () => false,
+        },
+        discoverProjects: async () => [{ kind: "workspace", path: "/repo/App.xcworkspace", name: "App" }],
+        discoverSchemes: async () => [{ name: "App", isLikelyTestScheme: false }],
+        discoverTargets: async () => [
+          {
+            kind: "physical",
+            id: "UDID-1",
+            aliases: ["ecid_legacy"],
+            name: "Screenager",
+            os: "iOS 26.4",
+            state: "Paired (Not Connected)",
+            connectionState: "paired_disconnected",
+          },
+        ],
+        runPhysicalPipeline: runPhysical,
+      },
+    );
+
+    const projectKey = path.resolve("/repo/App.xcworkspace");
+    expect(markPhysicalDeviceApproved).toHaveBeenCalledWith(projectKey, "UDID-1");
+    expect(markPhysicalDeviceApproved).toHaveBeenCalledWith(projectKey, "ecid_legacy");
+  });
+
+  it("serializes approval writes for aliased physical device ids", async () => {
+    let writeInFlight = false;
+    const markPhysicalDeviceApproved = vi.fn(async () => {
+      if (writeInFlight) {
+        throw new Error("concurrent approval write");
+      }
+      writeInFlight = true;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      writeInFlight = false;
+    });
+    const runPhysical = vi.fn(async () => undefined);
+    const ensureReady = vi.fn(async () => undefined);
+
+    await expect(
+      runSimplyBuild(
+        {
+          query: "screenager",
+          listDevices: false,
+          listProjects: false,
+          verbose: false,
+          help: false,
+        },
+        {
+          prompts: {
+            interactive: true,
+            intro: () => undefined,
+            outro: () => undefined,
+            info: () => undefined,
+            warn: () => undefined,
+            step: () => undefined,
+            select: async () => {
+              throw new Error("select should not be called");
+            },
+            confirm: async () => true,
+            text: async () => "unused",
+            stage: async (_message, task) => task(),
+          },
+          ensureXcodebuildmcpReady: ensureReady,
+          stateStore: {
+            statePath: "/tmp/state.json",
+            getProjectMemory: async () => undefined,
+            setProjectContext: async () => undefined,
+            markPhysicalDeviceApproved,
+            isPhysicalDeviceApproved: async () => false,
+          },
+          discoverProjects: async () => [
+            { kind: "workspace", path: "/repo/App.xcworkspace", name: "App" },
+          ],
+          discoverSchemes: async () => [{ name: "App", isLikelyTestScheme: false }],
+          discoverTargets: async () => [
+            {
+              kind: "physical",
+              id: "UDID-1",
+              aliases: ["ecid_legacy"],
+              name: "Screenager",
+              os: "iOS 26.4",
+              state: "Paired (Not Connected)",
+              connectionState: "paired_disconnected",
+            },
+          ],
+          runPhysicalPipeline: runPhysical,
+        },
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(markPhysicalDeviceApproved).toHaveBeenCalledTimes(2);
+    expect(runPhysical).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("runSimplyBuild prerequisite gate", () => {
