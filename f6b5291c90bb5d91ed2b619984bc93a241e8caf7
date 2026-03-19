@@ -1,0 +1,35 @@
+tests/runSimplyBuild.test.ts
+  cf55c89c9f132dda 252-440
+src/discovery/targets.ts
+  cf55c89c9f132dda 103-114,150,160
+src/types.ts
+  cf55c89c9f132dda 18
+tests/pipelines.test.ts
+  cf55c89c9f132dda 487-527
+src/app/runSimplyBuild.ts
+  cf55c89c9f132dda 44-55,62-63,292-294,301,460-464,481-482
+src/runner/pipelines.ts
+  cf55c89c9f132dda 50-51,58
+tests/targets.test.ts
+  cf55c89c9f132dda 204,252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "f6b5291c90bb5d91ed2b619984bc93a241e8caf7",
+  "prompts": {
+    "cf55c89c9f132dda": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ce85f-3761-70b0-b754-a18efeb53bb9",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Kainoa Newton <k@kainoa.me>",
+      "messages": [],
+      "total_additions": 276,
+      "total_deletions": 7,
+      "accepted_lines": 275,
+      "overriden_lines": 0
+    }
+  }
+}
