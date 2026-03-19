@@ -484,6 +484,47 @@ describe("runPhysicalPipeline", () => {
     } satisfies Partial<UserFacingError>);
   });
 
+  it("does not misclassify generic launch failures as locked-device errors", async () => {
+    const runTool = vi
+      .fn()
+      .mockResolvedValueOnce(toolResult("build ok"))
+      .mockResolvedValueOnce(
+        toolResult("App path retrieved successfully: /tmp/Build/Products/Debug-iphoneos/App.app"),
+      )
+      .mockResolvedValueOnce(toolResult("Bundle ID: com.example.app"))
+      .mockResolvedValueOnce(toolResult("install ok"))
+      .mockResolvedValueOnce(
+        failedToolResult(
+          "Failed to launch app: ERROR: The application failed to launch. (com.apple.dt.CoreDeviceError error 10002 (0x2712))\nNSLocalizedFailureReason = Unable to launch com.example.app because LaunchServices returned a generic failure.\nFBSOpenApplicationServiceErrorDomain error 1",
+        ),
+      );
+
+    const select = vi.fn(async () => "retry");
+    const prompts: PromptApi = {
+      interactive: true,
+      intro: () => undefined,
+      outro: () => undefined,
+      info: () => undefined,
+      warn: vi.fn(),
+      step: () => undefined,
+      select,
+      confirm: async () => true,
+      text: async () => "unused",
+      stage: async (_message, task) => task(),
+    };
+
+    await expect(
+      runPhysicalPipeline(physicalContext(), prompts, {
+        runTool,
+        runRaw: vi.fn(),
+      }),
+    ).rejects.toMatchObject({
+      message: "Failed to launch app on physical device.",
+    } satisfies Partial<UserFacingError>);
+
+    expect(select).not.toHaveBeenCalled();
+  });
+
   it("keeps locked-device failures fatal in non-interactive mode", async () => {
     const runTool = vi
       .fn()

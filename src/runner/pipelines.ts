@@ -47,14 +47,15 @@ const LAUNCH_LOCKED_REASON_MARKERS = [
   "could not be unlocked",
   "device was not, or could not be, unlocked",
   "BSErrorCodeDescription = Locked",
-  "NSLocalizedFailureReason = Unable to launch",
+  "for reason: Locked",
+  "because the device was not, or could not be, unlocked",
 ] as const;
 
 const LAUNCH_LOCKED_CONTEXT_MARKERS = [
   "com.apple.dt.CoreDeviceError error 10002",
   "0x2712",
   "FBSOpenApplicationErrorDomain error 7",
-  "Unable to launch",
+  "FBSOpenApplicationServiceErrorDomain error 1",
 ] as const;
 
 const LAUNCH_DISCONNECTED_MARKERS = [

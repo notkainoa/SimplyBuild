@@ -201,6 +201,7 @@ describe("target discovery platform filtering", () => {
 
     const targets = await discoverPhysicalDevices();
     expect(targets.map((target) => target.id)).toEqual(["00008140-000A1C341478801C"]);
+    expect(targets[0]?.aliases).toEqual(["ecid_2845759774425116"]);
   });
 
   it("keeps identifier when it is already deployable", async () => {
@@ -248,6 +249,7 @@ describe("target discovery platform filtering", () => {
 
     const targets = await discoverPhysicalDevices();
     expect(targets.map((target) => target.id)).toEqual(["DEVICE-IOS"]);
+    expect(targets[0]?.aliases).toEqual(["00008140-000A1C341478801C"]);
   });
 
   it("falls back to udid when identifier is missing", async () => {

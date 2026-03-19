@@ -100,6 +100,18 @@ function resolvePhysicalDeviceId(item: DeviceCtlDevice): string | undefined {
   return undefined;
 }
 
+function resolvePhysicalDeviceAliases(item: DeviceCtlDevice, primaryId: string): string[] | undefined {
+  const values = [item.identifier?.trim(), item.hardwareProperties?.udid?.trim()]
+    .filter((value): value is string => Boolean(value && value.length > 0))
+    .filter((value) => value !== primaryId);
+
+  if (values.length === 0) {
+    return undefined;
+  }
+
+  return [...new Set(values)];
+}
+
 export async function discoverPhysicalDevices(): Promise<TargetCandidate[]> {
   const outputPath = path.join(os.tmpdir(), `simplybuild-devicectl-${Date.now()}.json`);
   const result = await runCommand("xcrun", [
@@ -135,6 +147,7 @@ export async function discoverPhysicalDevices(): Promise<TargetCandidate[]> {
         if (!id) {
           return [];
         }
+        const aliases = resolvePhysicalDeviceAliases(item, id);
 
         const connectionState = resolvePhysicalConnectionState(
           item.connectionProperties?.pairingState,
@@ -144,6 +157,7 @@ export async function discoverPhysicalDevices(): Promise<TargetCandidate[]> {
         return [{
           kind: "physical" as const,
           id,
+          aliases,
           name: item.deviceProperties?.name?.trim() || "Unknown Device",
           os:
             item.deviceProperties?.osVersionNumber ||
