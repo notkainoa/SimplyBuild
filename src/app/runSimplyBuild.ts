@@ -478,9 +478,9 @@ export async function runSimplyBuild(
           throw new UserCancelledError("Physical deployment not approved.");
         }
 
-        await Promise.all(
-          targetIds.map((deviceId) => stateStore.markPhysicalDeviceApproved(projectKey, deviceId)),
-        );
+        for (const deviceId of targetIds) {
+          await stateStore.markPhysicalDeviceApproved(projectKey, deviceId);
+        }
       }
     }
 

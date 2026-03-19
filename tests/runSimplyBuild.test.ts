@@ -438,6 +438,75 @@ describe("runSimplyBuild state memory keys", () => {
     expect(markPhysicalDeviceApproved).toHaveBeenCalledWith(projectKey, "UDID-1");
     expect(markPhysicalDeviceApproved).toHaveBeenCalledWith(projectKey, "ecid_legacy");
   });
+
+  it("serializes approval writes for aliased physical device ids", async () => {
+    let writeInFlight = false;
+    const markPhysicalDeviceApproved = vi.fn(async () => {
+      if (writeInFlight) {
+        throw new Error("concurrent approval write");
+      }
+      writeInFlight = true;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      writeInFlight = false;
+    });
+    const runPhysical = vi.fn(async () => undefined);
+    const ensureReady = vi.fn(async () => undefined);
+
+    await expect(
+      runSimplyBuild(
+        {
+          query: "screenager",
+          listDevices: false,
+          listProjects: false,
+          verbose: false,
+          help: false,
+        },
+        {
+          prompts: {
+            interactive: true,
+            intro: () => undefined,
+            outro: () => undefined,
+            info: () => undefined,
+            warn: () => undefined,
+            step: () => undefined,
+            select: async () => {
+              throw new Error("select should not be called");
+            },
+            confirm: async () => true,
+            text: async () => "unused",
+            stage: async (_message, task) => task(),
+          },
+          ensureXcodebuildmcpReady: ensureReady,
+          stateStore: {
+            statePath: "/tmp/state.json",
+            getProjectMemory: async () => undefined,
+            setProjectContext: async () => undefined,
+            markPhysicalDeviceApproved,
+            isPhysicalDeviceApproved: async () => false,
+          },
+          discoverProjects: async () => [
+            { kind: "workspace", path: "/repo/App.xcworkspace", name: "App" },
+          ],
+          discoverSchemes: async () => [{ name: "App", isLikelyTestScheme: false }],
+          discoverTargets: async () => [
+            {
+              kind: "physical",
+              id: "UDID-1",
+              aliases: ["ecid_legacy"],
+              name: "Screenager",
+              os: "iOS 26.4",
+              state: "Paired (Not Connected)",
+              connectionState: "paired_disconnected",
+            },
+          ],
+          runPhysicalPipeline: runPhysical,
+        },
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(markPhysicalDeviceApproved).toHaveBeenCalledTimes(2);
+    expect(runPhysical).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("runSimplyBuild prerequisite gate", () => {
