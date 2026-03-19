@@ -16,7 +16,12 @@ interface DeviceCtlDevice {
     osVersionNumber?: string;
     platformIdentifier?: string;
   };
+  hardwareProperties?: {
+    udid?: string;
+  };
 }
+
+type PhysicalConnectionState = NonNullable<TargetCandidate["connectionState"]>;
 
 export function isLikelyIosPhysicalPlatform(platformIdentifier?: string): boolean {
   if (!platformIdentifier) {
@@ -47,14 +52,52 @@ function parseRuntimeLabel(runtimeKey: string): string {
   return `${platform} ${version}`;
 }
 
-function normalizeState(pairingState?: string, tunnelState?: string): string {
+function resolvePhysicalConnectionState(
+  pairingState?: string,
+  tunnelState?: string,
+): PhysicalConnectionState {
   if (pairingState !== "paired") {
-    return "Unpaired";
+    return "unpaired";
   }
   if (tunnelState === "connected") {
-    return "Available";
+    return "connected";
   }
-  return "Available (WiFi)";
+  if (tunnelState === "disconnected" || tunnelState === "unavailable") {
+    return "paired_disconnected";
+  }
+  return "unknown";
+}
+
+function formatPhysicalState(connectionState: PhysicalConnectionState): string {
+  switch (connectionState) {
+    case "connected":
+      return "Available";
+    case "paired_disconnected":
+      return "Paired (Not Connected)";
+    case "unpaired":
+      return "Unpaired";
+    default:
+      return "Unknown";
+  }
+}
+
+function resolvePhysicalDeviceId(item: DeviceCtlDevice): string | undefined {
+  const identifier = item.identifier?.trim();
+  const udid = item.hardwareProperties?.udid?.trim();
+
+  if (identifier?.toLowerCase().startsWith("ecid_") && udid) {
+    return udid;
+  }
+
+  if (identifier) {
+    return identifier;
+  }
+
+  if (udid) {
+    return udid;
+  }
+
+  return undefined;
 }
 
 export async function discoverPhysicalDevices(): Promise<TargetCandidate[]> {
@@ -87,25 +130,31 @@ export async function discoverPhysicalDevices(): Promise<TargetCandidate[]> {
     return items
       .filter((item) => item.visibilityClass !== "Simulator")
       .filter((item) => isLikelyIosPhysicalPlatform(item.deviceProperties?.platformIdentifier))
-      .filter((item) => typeof item.identifier === "string")
-      .map((item) => {
-        const state = normalizeState(
+      .flatMap((item) => {
+        const id = resolvePhysicalDeviceId(item);
+        if (!id) {
+          return [];
+        }
+
+        const connectionState = resolvePhysicalConnectionState(
           item.connectionProperties?.pairingState,
           item.connectionProperties?.tunnelState,
         );
-        return {
+        const state = formatPhysicalState(connectionState);
+        return [{
           kind: "physical" as const,
-          id: item.identifier ?? "",
+          id,
           name: item.deviceProperties?.name?.trim() || "Unknown Device",
           os:
             item.deviceProperties?.osVersionNumber ||
             item.deviceProperties?.platformIdentifier ||
             "iOS",
           state,
+          connectionState,
           isBooted: false,
-        };
+        }];
       })
-      .filter((item) => item.state.startsWith("Available"))
+      .filter((item) => item.connectionState !== "unpaired")
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch {
     return [];

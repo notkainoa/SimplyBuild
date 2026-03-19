@@ -1,5 +1,5 @@
 import type { ProjectCandidate, TargetCandidate } from "../types.js";
-import { UserFacingError } from "../types.js";
+import { UserCancelledError, UserFacingError } from "../types.js";
 import type { PromptApi } from "../ui/prompts.js";
 import type { CommandResult } from "../types.js";
 import { runCommand } from "./commandRunner.js";
@@ -22,6 +22,55 @@ export interface PipelineDependencies {
     args: string[],
     options: { verbose?: boolean },
   ) => Promise<CommandResult>;
+}
+
+const LOCKED_DEVICE_MARKERS = [
+  "device is locked",
+  "kAMDMobileImageMounterDeviceLocked",
+  "0xE80000E2",
+] as const;
+
+const INSTALL_NOT_CONNECTED_MARKERS = [
+  "unable to locate a device matching the requested device identifier",
+  "a connection to this device could not be established",
+  "the peer is no longer reachable",
+  "connection was invalidated",
+  "com.apple.dt.CoreDeviceError error 1011",
+  "com.apple.dt.CoreDeviceError error 4000",
+  "0x3F3",
+  "0xFA0",
+  "DeviceIdentifier: ecid_",
+  "DeviceIdentifier = ecid_",
+] as const;
+
+const LAUNCH_LOCKED_REASON_MARKERS = [
+  "could not be unlocked",
+  "device was not, or could not be, unlocked",
+  "BSErrorCodeDescription = Locked",
+  "NSLocalizedFailureReason = Unable to launch",
+] as const;
+
+const LAUNCH_LOCKED_CONTEXT_MARKERS = [
+  "com.apple.dt.CoreDeviceError error 10002",
+  "0x2712",
+  "FBSOpenApplicationErrorDomain error 7",
+  "Unable to launch",
+] as const;
+
+const LAUNCH_DISCONNECTED_MARKERS = [
+  "device disconnected immediately after connecting",
+  "com.apple.dt.CoreDeviceError error 4000",
+  "0xFA0",
+] as const;
+
+type PhysicalRecoveryAction = "retry" | "cancel";
+
+interface RecoverablePhysicalFailureHandler {
+  matches: (result: ToolCommandResult, ctx: PipelineContext) => boolean;
+  interactiveWarning: (ctx: PipelineContext) => string;
+  nonInteractiveMessage: (ctx: PipelineContext) => string;
+  cancellationMessage: string;
+  details?: (result: ToolCommandResult) => string[];
 }
 
 function containerArgs(container: ProjectCandidate): string[] {
@@ -68,6 +117,98 @@ function assertToolSuccess(result: ToolCommandResult, fallbackLabel: string): vo
       fallbackLabel,
       details.length > 0 ? details : undefined,
     );
+  }
+}
+
+function formatInstallNotConnectedDetails(result: ToolCommandResult): string[] {
+  return [
+    "Your Mac can see the phone, but it cannot reach it well enough to install the app.",
+    "Make sure the phone is unlocked and either on the same Wi-Fi network as your Mac or connected with USB.",
+    "Then try again.",
+    ...formatToolFailureDetails(result),
+  ];
+}
+
+function failureText(result: ToolCommandResult): string {
+  if (result.ok && !result.response.isError) {
+    return "";
+  }
+
+  return [result.response.text, result.stdout, result.stderr]
+    .filter((value): value is string => Boolean(value))
+    .join("\n")
+    .toLowerCase();
+}
+
+function matchesFailureMarkers(result: ToolCommandResult, markers: readonly string[]): boolean {
+  const combined = failureText(result);
+  if (!combined) {
+    return false;
+  }
+
+  return markers.some((marker) => combined.includes(marker.toLowerCase()));
+}
+
+function matchesLaunchLockedFailure(result: ToolCommandResult): boolean {
+  return (
+    matchesFailureMarkers(result, LAUNCH_LOCKED_REASON_MARKERS) &&
+    matchesFailureMarkers(result, LAUNCH_LOCKED_CONTEXT_MARKERS)
+  );
+}
+
+async function runRetryablePhysicalStep(
+  ctx: PipelineContext,
+  prompts: PromptApi,
+  deps: PipelineDependencies,
+  options: {
+    stageMessage: string;
+    failureMessage: string;
+    args: string[];
+    handlers: RecoverablePhysicalFailureHandler[];
+  },
+): Promise<void> {
+  while (true) {
+    let stepResult: ToolCommandResult | undefined;
+
+    try {
+      await prompts.stage(options.stageMessage, async () => {
+        stepResult = await deps.runTool(options.args, { verbose: ctx.verbose });
+        assertToolSuccess(stepResult, options.failureMessage);
+      });
+      return;
+    } catch (error) {
+      if (!stepResult) {
+        throw error;
+      }
+
+      const result = stepResult;
+      const handler = options.handlers.find((candidate) => candidate.matches(result, ctx));
+      if (!handler) {
+        throw error;
+      }
+
+      const details = handler.details?.(result) ?? formatToolFailureDetails(result);
+      if (!prompts.interactive) {
+        throw new UserFacingError(
+          handler.nonInteractiveMessage(ctx),
+          details.length > 0 ? details : undefined,
+        );
+      }
+
+      prompts.warn(handler.interactiveWarning(ctx));
+      const action = await prompts.select<PhysicalRecoveryAction>(
+        "What would you like to do?",
+        [
+          { value: "retry", label: "Try again" },
+          { value: "cancel", label: "Cancel" },
+        ],
+        "retry",
+      );
+
+      if (action === "cancel") {
+        throw new UserCancelledError(handler.cancellationMessage);
+      }
+    }
   }
 }
 
@@ -217,6 +358,46 @@ export async function runPhysicalPipeline(
   },
 ): Promise<void> {
   const baseArgs = containerArgs(ctx.container);
+  const installHandlers: RecoverablePhysicalFailureHandler[] = [
+    {
+      matches: (result) => matchesFailureMarkers(result, INSTALL_NOT_CONNECTED_MARKERS),
+      interactiveWarning: (currentCtx) =>
+        `${currentCtx.target.name} is not reachable from this Mac right now. Unlock it, put it on the same Wi-Fi network as your Mac or connect it with USB, then try again.`,
+      nonInteractiveMessage: (currentCtx) =>
+        `${currentCtx.target.name} is not reachable from this Mac right now. Unlock it, put it on the same Wi-Fi network as your Mac or connect it with USB, then run simplybuild again.`,
+      cancellationMessage:
+        "Physical deployment cancelled while the device remained unavailable for install.",
+      details: formatInstallNotConnectedDetails,
+    },
+    {
+      matches: (result) => matchesFailureMarkers(result, LOCKED_DEVICE_MARKERS),
+      interactiveWarning: (currentCtx) =>
+        `${currentCtx.target.name} is locked. Please unlock your device to continue.`,
+      nonInteractiveMessage: () =>
+        "Physical device is locked. Unlock the device and run the command again.",
+      cancellationMessage: "Physical deployment cancelled while device remained locked.",
+    },
+  ];
+
+  const launchHandlers: RecoverablePhysicalFailureHandler[] = [
+    {
+      matches: (result) => matchesLaunchLockedFailure(result),
+      interactiveWarning: (currentCtx) =>
+        `${currentCtx.target.name} is locked. Please unlock your device to continue.`,
+      nonInteractiveMessage: () =>
+        "Physical device is locked. Unlock the device and run the command again.",
+      cancellationMessage: "Physical deployment cancelled while device remained locked.",
+    },
+    {
+      matches: (result) => matchesFailureMarkers(result, LAUNCH_DISCONNECTED_MARKERS),
+      interactiveWarning: (currentCtx) =>
+        `${currentCtx.target.name} disconnected while launching the app. Reconnect it or make sure it stays reachable, then try again.`,
+      nonInteractiveMessage: () =>
+        "Physical device disconnected while launching the app. Reconnect it or make sure it stays reachable, then run the command again.",
+      cancellationMessage:
+        "Physical deployment cancelled while the device remained disconnected during launch.",
+    },
+  ];
 
   await prompts.stage(`Building ${ctx.scheme} for physical device`, async () => {
     const result = await deps.runTool(
@@ -256,33 +437,31 @@ export async function runPhysicalPipeline(
     return fallbackResolveBundleId(appPath, deps);
   });
 
-  await prompts.stage(`Installing app on ${ctx.target.name}`, async () => {
-    const installResult = await deps.runTool(
-      [
-        "device",
-        "install",
-        "--device-id",
-        ctx.target.id,
-        "--app-path",
-        appPath,
-      ],
-      { verbose: ctx.verbose },
-    );
-    assertToolSuccess(installResult, "Failed to install app on physical device.");
+  await runRetryablePhysicalStep(ctx, prompts, deps, {
+    stageMessage: `Installing app on ${ctx.target.name}`,
+    failureMessage: "Failed to install app on physical device.",
+    args: [
+      "device",
+      "install",
+      "--device-id",
+      ctx.target.id,
+      "--app-path",
+      appPath,
+    ],
+    handlers: installHandlers,
   });
 
-  await prompts.stage(`Launching app (${bundleId}) on ${ctx.target.name}`, async () => {
-    const launchResult = await deps.runTool(
-      [
-        "device",
-        "launch",
-        "--device-id",
-        ctx.target.id,
-        "--bundle-id",
-        bundleId,
-      ],
-      { verbose: ctx.verbose },
-    );
-    assertToolSuccess(launchResult, "Failed to launch app on physical device.");
+  await runRetryablePhysicalStep(ctx, prompts, deps, {
+    stageMessage: `Launching app (${bundleId}) on ${ctx.target.name}`,
+    failureMessage: "Failed to launch app on physical device.",
+    args: [
+      "device",
+      "launch",
+      "--device-id",
+      ctx.target.id,
+      "--bundle-id",
+      bundleId,
+    ],
+    handlers: launchHandlers,
   });
 }

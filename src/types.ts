@@ -18,6 +18,7 @@ export interface TargetCandidate {
   name: string;
   os: string;
   state: string;
+  connectionState?: "connected" | "paired_disconnected" | "unpaired" | "unknown";
   isBooted?: boolean;
 }
 
