@@ -1,0 +1,44 @@
+src/runner/pipelines.ts
+  cf55c89c9f132dda 2,27-75,123-211,361-400,440-443,451,454-457,465
+src/discovery/targets.ts
+  4ffe18dbf0f48bc6 19-21,24-25,55,57-58,60,63-93,95-100,133-139,143-144,146,153,155,157
+src/types.ts
+  4ffe18dbf0f48bc6 21
+tests/pipelines.test.ts
+  cf55c89c9f132dda 9,12,14-15,25-35,39-49,55,60-61,64-68,86,124-125,205-206,232-233,245-264,266,270,272-332,336-373,377-482,484-552,554-593,599-603,605-606,608-632,639-640,642-644,646,650-713,717-731,733-734
+tests/targets.test.ts
+  4ffe18dbf0f48bc6 104-339
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "ad5c952f5150806699939027f86c2d068b4aa31c",
+  "prompts": {
+    "4ffe18dbf0f48bc6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d06a0-15a7-7c40-95da-7ec4ff369076",
+        "model": "unknown"
+      },
+      "human_author": "Kainoa Newton <k@kainoa.me>",
+      "messages": [],
+      "total_additions": 297,
+      "total_deletions": 11,
+      "accepted_lines": 296,
+      "overriden_lines": 0
+    },
+    "cf55c89c9f132dda": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ce85f-3761-70b0-b754-a18efeb53bb9",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Kainoa Newton <k@kainoa.me>",
+      "messages": [],
+      "total_additions": 846,
+      "total_deletions": 230,
+      "accepted_lines": 710,
+      "overriden_lines": 0
+    }
+  }
+}
